@@ -110,7 +110,7 @@ dependencies {
     ksp(libs.hilt.android.compiler)
     ksp(libs.androidx.hilt.compiler)
 
-    implementation(libs.androidx.ui.tooling)
+    implementation(libs.ui.tooling)
 
     implementation(libs.androidx.runtime)
     implementation(libs.androidx.hilt.navigation.compose)
