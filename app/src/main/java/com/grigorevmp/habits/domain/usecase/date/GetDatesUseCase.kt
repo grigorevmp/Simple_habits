@@ -7,5 +7,5 @@ class GetAllDatesUseCase @Inject constructor(
     private var repository: DateRepository,
 ) {
 
-    fun invoke() = repository.getAllDates()
+    operator fun invoke() = repository.getAllDates()
 }

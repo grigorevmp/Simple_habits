@@ -15,18 +15,16 @@ class UpdateNotificationUseCase @Inject constructor(
 ){
     private val alarmScheduler = AlarmScheduler()
 
-    fun invoke(context: Context) {
-        CoroutineScope(Dispatchers.IO).launch {
-            habitRepository.fetchHabitsWithAlerts().collect { habits ->
-                for (habit in habits) {
+    suspend operator fun invoke(context: Context) {
+        habitRepository.fetchHabitsWithAlerts().collect { habits ->
+            for (habit in habits) {
 
-                    val requestCode = (habit.id * 100).toInt() + habit.days[0].ordinal
-                    val isAlertRegistered = Utils.checkIfPendingIntentIsRegistered(context, requestCode)
-                    Log.d("Alarm manager", "Habit ${habit.title}, Is alert created: $isAlertRegistered")
+                val requestCode = (habit.id * 100).toInt() + habit.days[0].ordinal
+                val isAlertRegistered = Utils.checkIfPendingIntentIsRegistered(context, requestCode)
+                Log.d("Alarm manager", "Habit ${habit.title}, Is alert created: $isAlertRegistered")
 
-                    if (!isAlertRegistered) {
-                        alarmScheduler.schedule(context, habit)
-                    }
+                if (!isAlertRegistered) {
+                    alarmScheduler.schedule(context, habit)
                 }
             }
         }

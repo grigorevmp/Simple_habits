@@ -20,45 +20,41 @@ class AddSyncPointForNewHabitUseCase @Inject constructor(
     private val dateRepository: DateRepository,
 ) {
 
-    fun invoke(habitId: Long) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val currentDate = LocalDate.now()
+    suspend operator fun invoke(habitId: Long) {
+        val currentDate = LocalDate.now()
 
-            var date = dateRepository.getDateId(currentDate)
+        var date = dateRepository.getDateId(currentDate)
 
-            if (date == null) {
-                date = DateEntity(date = currentDate)
-                dateRepository.insert(date)
-            }
+        if (date == null) {
+            date = DateEntity(date = currentDate)
+            dateRepository.insert(date)
+        }
 
-            val habit = habitRepository.getHabitById(habitId)
+        val habit = habitRepository.getHabitById(habitId)
 
-            if (habit == null) {
-                Log.d(
-                    AddSyncPointForNewHabitUseCase::class.simpleName,
-                    "Habit not found for id: $habitId"
-                )
-                return@launch
-            }
+        if (habit == null) {
+            Log.d(
+                AddSyncPointForNewHabitUseCase::class.simpleName,
+                "Habit not found for id: $habitId"
+            )
+            return
+        }
 
-            val supportedDaysOfWeek = habit.days
+        val supportedDaysOfWeek = habit.days
 
-            if (currentDate.dayOfWeek in supportedDaysOfWeek) {
+        if (currentDate.dayOfWeek in supportedDaysOfWeek) {
 
-                val possibleHabit = habitRepository.getHabitForDate(date.id!!, habit.id)
+            val possibleHabit = habitRepository.getHabitForDate(date.id!!, habit.id)
 
-                if (possibleHabit == null) {
-                    habitRefRepository.insert(
-                        HabitRefEntity(
-                            dateId = date.id!!,
-                            habitId = habit.id,
-                            habitType = HabitType.Unknown
-                        )
+            if (possibleHabit == null) {
+                habitRefRepository.insert(
+                    HabitRefEntity(
+                        dateId = date.id!!,
+                        habitId = habit.id,
+                        habitType = HabitType.Unknown
                     )
-                }
+                )
             }
-
-            cancel()
         }
     }
 }

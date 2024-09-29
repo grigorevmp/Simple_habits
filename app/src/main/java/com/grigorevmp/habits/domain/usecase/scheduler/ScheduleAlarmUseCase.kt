@@ -8,7 +8,7 @@ import javax.inject.Inject
 class ScheduleAlarmUseCase @Inject constructor() {
     private val alarmScheduler = AlarmScheduler()
 
-    fun invoke(context: Context, item: HabitEntity) {
+    operator fun invoke(context: Context, item: HabitEntity) {
         alarmScheduler.schedule(context, item)
     }
 }

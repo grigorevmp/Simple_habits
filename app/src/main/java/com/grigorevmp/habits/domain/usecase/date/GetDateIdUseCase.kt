@@ -7,5 +7,5 @@ class GetDateIdUseCase @Inject constructor(
     private var repository: DateRepository,
 ) {
 
-    fun invoke(dateId: Long) = repository.getDate(dateId)
+    operator fun invoke(dateId: Long) = repository.getDate(dateId)
 }

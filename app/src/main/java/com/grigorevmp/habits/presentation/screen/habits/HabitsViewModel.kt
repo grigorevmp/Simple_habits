@@ -22,12 +22,11 @@ import com.grigorevmp.habits.presentation.screen.habits.data.StatYear
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -47,64 +46,72 @@ class HabitsViewModel @Inject constructor(
 ) : ViewModel() {
 
     var uiState = HabitListScreenUiState(
-        habitsData = getHabitsUseCase.invoke()
+        habitsData = getHabitsUseCase()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(1000), emptyList())
     )
         private set
 
-    fun loadData(payload: () -> Unit) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val resultMap = mutableMapOf<Long, List<StatYear>>()
 
-            getHabitsUseCase.invoke().collectLatest { habits ->
-                habits.forEach { habit ->
-                    getAllDateOfHabitRefUseCase.invoke(habit.id).first { habitList ->
-                        val all = habitList.sortedBy { it.dateId }
-                            .filter {
-                                val date = getDateIdUseCase.invoke(it.dateId)?.date
-                                date != null
-                            }.map {
-                                val date = getDateIdUseCase.invoke(it.dateId)?.date!!
-                                date to (it.habitType == HabitType.Done)
-                            }
+    override fun onCleared() {
+        super.onCleared()
 
-                        val allYears = all.groupBy { it.first.year }.map { habitsByYear ->
-                            val year = habitsByYear.key
-                            val months =
-                                habitsByYear.value.groupBy { it.first.month }.map { habitByMonth ->
-                                    val month = habitByMonth.key
-                                    val sumOfCompletedHabits =
-                                        habitByMonth.value.map { if (it.second) 1 else 0 }.sum()
-                                    val allHabits = habitByMonth.value.size
-                                    val percentOfMonth =
-                                        if (allHabits > 0) sumOfCompletedHabits.toFloat() / allHabits * 100 else 0f
+        scope.cancel()
+    }
 
-                                    val days = habitByMonth.value.map {
-                                        StatDay(it.first.dayOfMonth, if (it.second) 1f else 0f)
-                                    }
 
-                                    StatMonth(
-                                        index = month.ordinal,
-                                        percent = percentOfMonth,
-                                        days = days,
-                                    )
-                                }
+    private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-                            StatYear(
-                                year = year,
-                                months = months,
-                            )
+    fun loadData(payload: () -> Unit) = scope.launch {
+        val resultMap = mutableMapOf<Long, List<StatYear>>()
+
+        getHabitsUseCase().collectLatest { habits ->
+            habits.forEach { habit ->
+                getAllDateOfHabitRefUseCase(habit.id).first { habitList ->
+                    val all = habitList.sortedBy { it.dateId }
+                        .filter {
+                            val date = getDateIdUseCase(it.dateId)?.date
+                            date != null
+                        }.map {
+                            val date = getDateIdUseCase(it.dateId)?.date!!
+                            date to (it.habitType == HabitType.Done)
                         }
 
-                        resultMap[habit.id] = allYears
-                        true
+                    val allYears = all.groupBy { it.first.year }.map { habitsByYear ->
+                        val year = habitsByYear.key
+                        val months =
+                            habitsByYear.value.groupBy { it.first.month }.map { habitByMonth ->
+                                val month = habitByMonth.key
+                                val sumOfCompletedHabits =
+                                    habitByMonth.value.map { if (it.second) 1 else 0 }.sum()
+                                val allHabits = habitByMonth.value.size
+                                val percentOfMonth =
+                                    if (allHabits > 0) sumOfCompletedHabits.toFloat() / allHabits * 100 else 0f
+
+                                val days = habitByMonth.value.map {
+                                    StatDay(it.first.dayOfMonth, if (it.second) 1f else 0f)
+                                }
+
+                                StatMonth(
+                                    index = month.ordinal,
+                                    percent = percentOfMonth,
+                                    days = days,
+                                )
+                            }
+
+                        StatYear(
+                            year = year,
+                            months = months,
+                        )
                     }
+
+                    resultMap[habit.id] = allYears
+                    true
                 }
-                uiState.statisticData.value = resultMap
-                payload()
             }
-            cancel()
+            uiState.statisticData.value = resultMap
+            payload()
         }
+        cancel()
     }
 
     fun addHabit(
@@ -117,36 +124,34 @@ class HabitsViewModel @Inject constructor(
         countable: Boolean,
         countableEntity: CountableEntity?,
         habitCategory: HabitCategory,
-    ) = viewModelScope.launch {
-        CoroutineScope(Dispatchers.IO).launch {
-            val habit = addHabitUseCase.invoke(
-                title,
-                description,
-                selectedDays,
-                useAlert,
-                timePickerState,
-                countable,
-                countableEntity,
-                habitCategory,
-            )
+    ) = scope.launch {
+        val habit = addHabitUseCase(
+            title,
+            description,
+            selectedDays,
+            useAlert,
+            timePickerState,
+            countable,
+            countableEntity,
+            habitCategory,
+        )
 
-            if (useAlert) {
-                scheduleAlarmUseCase.invoke(context, habit)
-            }
-
-            addSyncPointForNewHabitUseCase.invoke(habit.id)
+        if (useAlert) {
+            scheduleAlarmUseCase(context, habit)
         }
+
+        addSyncPointForNewHabitUseCase(habit.id)
     }
 
-    fun updateHabit(context: Context, habit: HabitEntity) = viewModelScope.launch {
-        updateHabitUseCase.invoke(habit)
+    fun updateHabit(context: Context, habit: HabitEntity) = scope.launch {
+        updateHabitUseCase(habit)
 
         if (habit.alertEnabled) {
-            scheduleAlarmUseCase.invoke(context, habit)
+            scheduleAlarmUseCase(context, habit)
         }
     }
 
-    fun deleteHabit(habit: HabitEntity) = viewModelScope.launch {
-        deleteHabitUseCase.invoke(habit)
+    fun deleteHabit(habit: HabitEntity) = scope.launch {
+        deleteHabitUseCase(habit)
     }
 }

@@ -8,7 +8,7 @@ class DeleteHabitUseCase @Inject constructor(
     private var repository: HabitRepository,
 ) {
 
-    suspend fun invoke(
+    suspend operator fun invoke(
         habit: HabitEntity
     ) {
         repository.delete(habit)

@@ -22,69 +22,66 @@ class UpdateSyncPointUseCase @Inject constructor(
     private val dateRepository: DateRepository,
 ) {
 
-    fun invoke() {
-        CoroutineScope(Dispatchers.IO).launch {
-            var lastDate = preferencesRepository.getLastSyncDate()
-            val currentDate = LocalDate.now()
+    suspend operator fun invoke() {
+        var lastDate = preferencesRepository.getLastSyncDate()
+        val currentDate = LocalDate.now()
 
-            val currentDateId = dateRepository.getDateId(currentDate)
+        val currentDateId = dateRepository.getDateId(currentDate)
 
-            if (currentDateId == null) {
-                dateRepository.insert(
-                    DateEntity(date = currentDate)
-                )
-            }
+        if (currentDateId == null) {
+            dateRepository.insert(
+                DateEntity(date = currentDate)
+            )
+        }
 
-            var sync = true
+        var sync = true
 
-            habitRepository.fetchHabits().first { habits ->
-                while (sync) {
-                    var date = dateRepository.getDateId(lastDate)
+        habitRepository.fetchHabits().first { habits ->
+            while (sync) {
+                var date = dateRepository.getDateId(lastDate)
 
-                    if (date == null) {
-                        dateRepository.insert(
-                            DateEntity(date = lastDate)
-                        )
+                if (date == null) {
+                    dateRepository.insert(
+                        DateEntity(date = lastDate)
+                    )
 
-                        date = dateRepository.getDateId(lastDate)
-                    }
+                    date = dateRepository.getDateId(lastDate)
+                }
 
-                    val targetDayOfTheWeek = date!!.date.dayOfWeek
+                val targetDayOfTheWeek = date!!.date.dayOfWeek
 
-                    for (habit in habits) {
-                        val supportedDaysOfWeek = habit.habit.days
+                for (habit in habits) {
+                    val supportedDaysOfWeek = habit.habit.days
 
-                        if (targetDayOfTheWeek in supportedDaysOfWeek) {
+                    if (targetDayOfTheWeek in supportedDaysOfWeek) {
 
-                            val possibleHabit =
-                                habitRepository.getHabitForDate(date.id!!, habit.habit.id)
+                        val possibleHabit =
+                            habitRepository.getHabitForDate(date.id!!, habit.habit.id)
 
-                            if (possibleHabit == null) {
-                                habit.dateIdList.add(date.id!!)
+                        if (possibleHabit == null) {
+                            habit.dateIdList.add(date.id!!)
 
-                                habitRefRepository.insert(
-                                    HabitRefEntity(
-                                        dateId = date.id!!,
-                                        habitId = habit.habit.id,
-                                        habitType = if (lastDate == currentDate) HabitType.Unknown else HabitType.Missed
-                                    )
+                            habitRefRepository.insert(
+                                HabitRefEntity(
+                                    dateId = date.id!!,
+                                    habitId = habit.habit.id,
+                                    habitType = if (lastDate == currentDate) HabitType.Unknown else HabitType.Missed
                                 )
-                            }
+                            )
                         }
-                    }
-
-                    if (lastDate >= currentDate) {
-                        sync = false
-                    } else {
-                        lastDate = lastDate.plusDays(1)
                     }
                 }
 
-                true
+                if (lastDate >= currentDate) {
+                    sync = false
+                } else {
+                    lastDate = lastDate.plusDays(1)
+                }
             }
 
-            preferencesRepository.updateLastSyncDate()
-            cancel()
+            true
         }
+
+        preferencesRepository.updateLastSyncDate()
     }
 }

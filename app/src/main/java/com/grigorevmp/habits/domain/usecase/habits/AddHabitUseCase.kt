@@ -13,7 +13,7 @@ class AddHabitUseCase @Inject constructor(
     private var repository: HabitRepository,
 ) {
 
-    suspend fun invoke(
+    suspend operator fun invoke(
         title: String,
         description: String,
         selectedDays: Array<DayOfWeek>,

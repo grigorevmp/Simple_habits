@@ -2,7 +2,6 @@ package com.grigorevmp.habits.presentation.screen.today
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.grigorevmp.habits.core.in_app_bus.GlobalBus
 import com.grigorevmp.habits.data.date.DateEntity
 import com.grigorevmp.habits.data.habit.HabitType
@@ -19,6 +18,7 @@ import com.grigorevmp.habits.presentation.screen.today.mapper.TodayScreenMapper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -45,132 +45,134 @@ class TodayScreenViewModel @Inject constructor(
 
     var uiState = TodayScreenUiState()
         private set
+    
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
 
-    fun init(context: Context, daysCount: Int) = viewModelScope.launch {
-        CoroutineScope(Dispatchers.IO).launch {
-            delay(1000)
+    override fun onCleared() {
+        super.onCleared()
 
-            GlobalBus.events().collect {
-                getPreparedHabitsList(context, daysCount) { }
-                updateWeekStatistic()
-            }
+        scope.cancel()
+    }
+
+
+    fun init(context: Context, daysCount: Int) = scope.launch {
+        delay(1000)
+
+        GlobalBus.events().collect {
+            getPreparedHabitsList(context, daysCount) { }
+            updateWeekStatistic()
         }
     }
 
-    fun getPreparedHabitsList(context: Context, daysCount: Int, payload: () -> Unit) {
-        CoroutineScope(Dispatchers.IO).launch {
-            getHabitsUseCase.invoke().collectLatest { habitsData ->
-                val minorAllHabitsWithDateData = mutableListOf<HabitWithDatesUI>()
-                val datesData = getDatesCut(daysCount)
+    fun getPreparedHabitsList(context: Context, daysCount: Int, payload: () -> Unit) = scope.launch {
+        getHabitsUseCase().collectLatest { habitsData ->
+            val minorAllHabitsWithDateData = mutableListOf<HabitWithDatesUI>()
+            val datesData = getDatesCut(daysCount)
 
-                for (date in datesData) {
-                    getDate(date).collect { targetDate ->
-                        val habitWithDate = HabitWithDatesUI(
-                            date = todayScreenMapper.getFancyTodayString(
-                                context,
-                                date.dayOfMonth,
-                                date.month,
-                                date.dayOfWeek
-                            ),
-                            habits = arrayListOf()
-                        )
+            for (date in datesData) {
+                getDate(date).collect { targetDate ->
+                    val habitWithDate = HabitWithDatesUI(
+                        date = todayScreenMapper.getFancyTodayString(
+                            context,
+                            date.dayOfMonth,
+                            date.month,
+                            date.dayOfWeek
+                        ),
+                        habits = arrayListOf()
+                    )
 
-                        targetDate.id?.let { targetDateId ->
-                            for (habit in habitsData) {
-                                if (habit.deleted) continue
-
-                                val habitRef =
-                                    getHabitRefUseCase.invoke(
-                                        targetDateId,
-                                        habit.id
-                                    )
-
-                                if (habitRef != null) {
-
-                                    habitWithDate.habits.add(
-                                        HabitEntityUI(
-                                            id = habit.id,
-                                            dateId = targetDateId,
-                                            title = habit.title,
-                                            category = habit.habitCategory.name,
-                                            description = habit.description,
-                                            alert = habit.alertEnabled,
-                                            time = habit.time,
-                                            type = habitRef.habitType,
-                                            countable = habit.countable,
-                                            maxValue = habit.countableEntity?.targetValue,
-                                            value = habitRef.value ?: 0,
-                                            valueName = habit.countableEntity?.valueName,
-                                            valueAction = habit.countableEntity?.actionName,
-                                        )
-                                    )
-                                }
-                            }
-                        }
-
-                        minorAllHabitsWithDateData.add(habitWithDate)
-                    }
-                }
-
-                uiState.todayHabitData.value = minorAllHabitsWithDateData
-                payload()
-            }
-            cancel()
-        }
-    }
-
-    fun updateWeekStatistic() {
-        CoroutineScope(Dispatchers.IO).launch {
-            getHabitsUseCase.invoke().collectLatest { habitsData ->
-                val minorAllHabitStatisticItemUiData = mutableListOf<HabitStatisticItemUi>()
-                val datesData = getWeekDays()
-
-                val localDateTime = LocalDateTime.now()
-
-                for ((index, date) in datesData.withIndex()) {
-                    val statisticItem = HabitStatisticItemUi(0, 0, index, date.dayOfMonth.toLong())
-
-                    getDateOrNull(date).collect { targetDate ->
-                        if (targetDate == null) return@collect
-
-                        if (date == localDateTime.toLocalDate() && isLongerDate() && localDateTime.hour < extendDayValue) return@collect
-
+                    targetDate.id?.let { targetDateId ->
                         for (habit in habitsData) {
-
                             if (habit.deleted) continue
 
-                            val habitRef = getHabitRefUseCase.invoke(
-                                targetDate.id!!,
-                                habit.id
-                            )
+                            val habitRef =
+                                getHabitRefUseCase(
+                                    targetDateId,
+                                    habit.id
+                                )
 
                             if (habitRef != null) {
-                                statisticItem.habitsNumber += 1
 
-                                if (habitRef.habitType == HabitType.Done) {
-                                    statisticItem.checkedHabitsNumber += 1
-                                }
+                                habitWithDate.habits.add(
+                                    HabitEntityUI(
+                                        id = habit.id,
+                                        dateId = targetDateId,
+                                        title = habit.title,
+                                        category = habit.habitCategory.name,
+                                        description = habit.description,
+                                        alert = habit.alertEnabled,
+                                        time = habit.time,
+                                        type = habitRef.habitType,
+                                        countable = habit.countable,
+                                        maxValue = habit.countableEntity?.targetValue,
+                                        value = habitRef.value ?: 0,
+                                        valueName = habit.countableEntity?.valueName,
+                                        valueAction = habit.countableEntity?.actionName,
+                                    )
+                                )
                             }
                         }
                     }
 
-                    minorAllHabitStatisticItemUiData.add(statisticItem)
+                    minorAllHabitsWithDateData.add(habitWithDate)
                 }
-
-                uiState.statisticData.value = minorAllHabitStatisticItemUiData
             }
-            cancel()
+
+            uiState.todayHabitData.value = minorAllHabitsWithDateData
+            payload()
         }
     }
 
-    fun updateHabitRef(dateId: Long, habitId: Long, habitType: HabitType) = viewModelScope.launch {
-        updateHabitRefUseCase.invoke(dateId, habitId, habitType)
+    fun updateWeekStatistic() = scope.launch {
+        getHabitsUseCase().collectLatest { habitsData ->
+            val minorAllHabitStatisticItemUiData = mutableListOf<HabitStatisticItemUi>()
+            val datesData = getWeekDays()
+
+            val localDateTime = LocalDateTime.now()
+
+            for ((index, date) in datesData.withIndex()) {
+                val statisticItem = HabitStatisticItemUi(0, 0, index, date.dayOfMonth.toLong())
+
+                getDateOrNull(date).collect { targetDate ->
+                    if (targetDate == null) return@collect
+
+                    if (date == localDateTime.toLocalDate() && isLongerDate() && localDateTime.hour < extendDayValue) return@collect
+
+                    for (habit in habitsData) {
+
+                        if (habit.deleted) continue
+
+                        val habitRef = getHabitRefUseCase(
+                            targetDate.id!!,
+                            habit.id
+                        )
+
+                        if (habitRef != null) {
+                            statisticItem.habitsNumber += 1
+
+                            if (habitRef.habitType == HabitType.Done) {
+                                statisticItem.checkedHabitsNumber += 1
+                            }
+                        }
+                    }
+                }
+
+                minorAllHabitStatisticItemUiData.add(statisticItem)
+            }
+
+            uiState.statisticData.value = minorAllHabitStatisticItemUiData
+        }
+        cancel()
+    }
+
+    fun updateHabitRef(dateId: Long, habitId: Long, habitType: HabitType) = scope.launch {
+        updateHabitRefUseCase(dateId, habitId, habitType)
         updateWeekStatistic()
     }
 
-    fun updateHabitRefCountable(dateId: Long, habitId: Long, habitType: HabitType, value: Int) = viewModelScope.launch {
-        updateCountableHabitRefUseCase.invoke(dateId, habitId, habitType, value)
+    fun updateHabitRefCountable(dateId: Long, habitId: Long, habitType: HabitType, value: Int) = scope.launch {
+        updateCountableHabitRefUseCase(dateId, habitId, habitType, value)
         updateWeekStatistic()
     }
 
@@ -187,13 +189,13 @@ class TodayScreenViewModel @Inject constructor(
     private fun isLongerDate(): Boolean = preferencesRepository.getLongerDateFlag()
 
     private fun getDate(date: LocalDate): Flow<DateEntity> = flow {
-        getDateUseCase.invoke(date)?.also {
+        getDateUseCase(date)?.also {
             emit(it)
         }
     }.flowOn(Dispatchers.IO)
 
     private fun getDateOrNull(date: LocalDate): Flow<DateEntity?> = flow {
-        emit(getDateUseCase.invoke(date))
+        emit(getDateUseCase(date))
     }.flowOn(Dispatchers.IO)
 
     private fun getDatesCut(days: Int): List<LocalDate> {

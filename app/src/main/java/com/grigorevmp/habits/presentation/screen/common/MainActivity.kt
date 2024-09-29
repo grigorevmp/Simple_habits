@@ -54,6 +54,11 @@ import com.grigorevmp.habits.presentation.screen.today.TodayScreenViewModel
 import com.grigorevmp.habits.presentation.theme.HabitTrackerTheme
 import com.grigorevmp.habits.presentation.theme.ThemePreference
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -68,6 +73,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var preferencesRepository: PreferencesRepository
 
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
@@ -80,9 +88,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+
+        scope.cancel()
+    }
+
     private fun synchronize() {
-        updateSyncPointUseCase.invoke()
-        updateNotificationUseCase.invoke(this)
+        scope.launch {
+            updateSyncPointUseCase()
+            updateNotificationUseCase(applicationContext)
+        }
 
         createChannel(this)
     }

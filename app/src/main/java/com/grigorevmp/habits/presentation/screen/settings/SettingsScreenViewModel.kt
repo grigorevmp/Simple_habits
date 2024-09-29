@@ -12,6 +12,7 @@ import com.grigorevmp.habits.presentation.theme.ThemePreference
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -25,6 +26,16 @@ class SettingsScreenViewModel @Inject constructor(
     private val getAllDatesUseCase: GetAllDatesUseCase,
     private val preferencesRepository: PreferencesRepository,
 ) : ViewModel() {
+
+    private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+
+    override fun onCleared() {
+        super.onCleared()
+
+        scope.cancel()
+    }
+
 
     fun isIgnoringBattery(context: Context): Boolean {
         val pm: PowerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -53,39 +64,36 @@ class SettingsScreenViewModel @Inject constructor(
 
     fun getTheme() = preferencesRepository.getAppTheme()
 
-    fun getPreparedHabitsList(payload: (String) -> Unit) {
-        CoroutineScope(Dispatchers.IO).launch {
-            getHabitsUseCase.invoke().collectLatest { habitsData ->
-                getAllDatesUseCase.invoke().collect { dates ->
-                    val habitMap: MutableMap<Long, String> = mutableMapOf()
+    fun getPreparedHabitsList(payload: (String) -> Unit) = scope.launch {
+        getHabitsUseCase().collectLatest { habitsData ->
+            getAllDatesUseCase().collect { dates ->
+                val habitMap: MutableMap<Long, String> = mutableMapOf()
 
-                    var result = "Habit tracker\n\n"
+                var result = "Habit tracker\n\n"
+
+                for (habit in habitsData) {
+                    result += habit.representForBackup()
+                    result += habit.countableEntity?.representForBackup() ?: "\n"
+                    habitMap[habit.id] = habit.title
+                }
+                result += "======\n"
+
+                for (date in dates) {
+                    result += "======\n"
+                    result += date.date.toString() + "\n"
+                    if (date.id == null) continue
 
                     for (habit in habitsData) {
-                        result += habit.representForBackup()
-                        result += habit.countableEntity?.representForBackup() ?: "\n"
-                        habitMap[habit.id] = habit.title
-                    }
-                    result += "======\n"
+                        val habitRef = getHabitRefUseCase(date.id, habit.id)
 
-                    for (date in dates) {
-                        result += "======\n"
-                        result += date.date.toString() + "\n"
-                        if (date.id == null) continue
-
-                        for (habit in habitsData) {
-                            val habitRef = getHabitRefUseCase.invoke(date.id, habit.id)
-
-                            if (habitRef != null) {
-                                result += habitMap[habit.id] + habitRef.representForBackup()
-                            }
+                        if (habitRef != null) {
+                            result += habitMap[habit.id] + habitRef.representForBackup()
                         }
                     }
-
-                    payload(result)
                 }
+
+                payload(result)
             }
-            cancel()
         }
     }
 }

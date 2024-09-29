@@ -34,16 +34,20 @@ class MarkAsDoneBroadcastReceiver : HiltBroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
 
-        val id = intent.getLongExtra("EXTRA_NOTIF_ID", -1L)
+        val id = intent.getLongExtra("EXTRA_DONE_NOTIF_ID", -1L)
+        if (id == -1L) {
+            Log.e("MarkAsDoneBroadcastReceiver", "Invalid habit ID")
+            return
+        }
 
-        Log.d("MarkAsDoneBroadcastReceiver", "Done $id")
+        Log.d("MarkAsDoneBroadcastReceiver", "Received notification action for habit ID: $id")
 
         CoroutineScope(Dispatchers.IO).launch {
-            getDateUseCase.invoke(LocalDate.now())?.also {
+            getDateUseCase(LocalDate.now())?.also {
                 it.id?.let { dateId ->
                     Log.d("MarkAsDoneBroadcastReceiver", "Habit $id on date $dateId changed")
 
-                    updateHabitRefUseCase.invoke(
+                    updateHabitRefUseCase(
                         dateId,
                         id,
                         HabitType.Done
@@ -52,7 +56,11 @@ class MarkAsDoneBroadcastReceiver : HiltBroadcastReceiver() {
             }
 
             withContext(Dispatchers.Main) {
-                Toast.makeText(context, context.getString(R.string.marked_as_done), Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.marked_as_done),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
 

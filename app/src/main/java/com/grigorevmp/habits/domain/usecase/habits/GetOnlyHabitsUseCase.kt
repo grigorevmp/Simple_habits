@@ -7,5 +7,5 @@ class GetOnlyHabitsUseCase @Inject constructor(
     private var repository: HabitRepository,
 ) {
 
-    fun invoke() = repository.fetchOnlyHabits()
+    operator fun invoke() = repository.fetchOnlyHabits()
 }

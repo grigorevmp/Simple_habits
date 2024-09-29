@@ -11,5 +11,6 @@ object Changelogs {
         context.getString(R.string.changelog_v_1),
         context.getString(R.string.changelog_v_2),
         context.getString(R.string.changelog_v_3),
+        context.getString(R.string.changelog_v_4),
     )
 }

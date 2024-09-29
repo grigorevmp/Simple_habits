@@ -199,5 +199,6 @@
     <string name="changelog_v_1">1.0 beta 6.1\n- Fixed notifications\n- Fixed canceling habits\n- Added a link to the tg channel\n- Added display of a list of changes\n</string>
     <string name="changelog_v_2">1.0.0\n- Add Categories for habits\n- New today card UI</string>
     <string name="changelog_v_3">1.0.1\n- Add color indicator for missed habits\n- Notification fixes</string>
+    <string name="changelog_v_4">1.1.0\n- pu pu pu</string>
 
 </resources>

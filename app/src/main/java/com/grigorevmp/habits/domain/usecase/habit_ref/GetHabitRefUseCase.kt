@@ -7,5 +7,5 @@ class GetHabitRefUseCase @Inject constructor(
     private var repository: HabitRefRepository,
 ) {
 
-    fun invoke(targetDateId: Long, habitId: Long) = repository.getHabitRefForDate(targetDateId, habitId)
+    operator fun invoke(targetDateId: Long, habitId: Long) = repository.getHabitRefForDate(targetDateId, habitId)
 }
