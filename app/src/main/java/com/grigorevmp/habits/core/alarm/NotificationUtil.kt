@@ -17,6 +17,8 @@ import com.grigorevmp.habits.receiver.habit_notification.MarkAsMissedBroadcastRe
 const val NOTIFICATION_ID = 33
 const val CHANNEL_ID = "ReminderChannel"
 
+//TODO Refactor Util class
+
 fun createChannel(context: Context) {
     val notificationChannel =
         NotificationChannel(CHANNEL_ID, "Habit reminder", NotificationManager.IMPORTANCE_HIGH)
