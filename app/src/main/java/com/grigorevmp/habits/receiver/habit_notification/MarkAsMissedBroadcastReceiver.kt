@@ -10,10 +10,14 @@ import com.grigorevmp.habits.core.alarm.NOTIFICATION_ID
 import com.grigorevmp.habits.core.in_app_bus.Event
 import com.grigorevmp.habits.core.in_app_bus.EventType
 import com.grigorevmp.habits.core.in_app_bus.GlobalBus
+import com.grigorevmp.habits.data.date.DateEntity
 import com.grigorevmp.habits.data.habit.HabitType
+import com.grigorevmp.habits.data.repository.DateRepository
+import com.grigorevmp.habits.data.repository.PreferencesRepository
 import com.grigorevmp.habits.di.HiltBroadcastReceiver
 import com.grigorevmp.habits.domain.usecase.date.GetDateUseCase
 import com.grigorevmp.habits.domain.usecase.habit_ref.UpdateHabitRefUseCase
+import com.grigorevmp.habits.domain.usecase.synchronizer.UpdateSyncPointUseCase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,8 +33,16 @@ class MarkAsMissedBroadcastReceiver : HiltBroadcastReceiver() {
     lateinit var updateHabitRefUseCase: UpdateHabitRefUseCase
 
     @Inject
+    lateinit var updateSyncPointUseCase: UpdateSyncPointUseCase
+
+    @Inject
     lateinit var getDateUseCase: GetDateUseCase
 
+    @Inject
+    lateinit var dateRepository: DateRepository
+
+    @Inject
+    lateinit var preferencesRepository: PreferencesRepository
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
 
@@ -40,26 +52,29 @@ class MarkAsMissedBroadcastReceiver : HiltBroadcastReceiver() {
             return
         }
 
-        Log.d("MarkAsMissedBroadcastReceiver", "Received notification action for habit ID: $id")
-
         CoroutineScope(Dispatchers.IO).launch {
-            getDateUseCase(LocalDate.now())?.also {
-                it.id?.let { dateId ->
-                    Log.d("MarkAsMissedBroadcastReceiver", "Habit $id on date $dateId changed")
+            updateSyncPointUseCase()
 
-                    updateHabitRefUseCase(
-                        dateId,
-                        id,
-                        HabitType.Missed
-                    )
-                }
+            preferencesRepository.updateLastSyncDate()
+
+            val lastDate = preferencesRepository.getLastSyncDate()
+            val date = dateRepository.getDateId(lastDate)
+
+            Log.d("MarkAsMissedBroadcastReceiver", "Received notification action for habit ID: $id")
+
+            Log.d("MarkAsMissedBroadcastReceiver", "Habit $id on date $date changing")
+
+            if (date?.id != null) {
+                updateHabitRefUseCase(
+                    date.id, id, HabitType.Missed
+                )
             }
+
+            Log.d("MarkAsMissedBroadcastReceiver", "Habit $id on date $date changed")
 
             withContext(Dispatchers.Main) {
                 Toast.makeText(
-                    context,
-                    context.getString(R.string.marked_as_missed),
-                    Toast.LENGTH_SHORT
+                    context, context.getString(R.string.marked_as_missed), Toast.LENGTH_SHORT
                 ).show()
             }
         }
@@ -70,8 +85,7 @@ class MarkAsMissedBroadcastReceiver : HiltBroadcastReceiver() {
 
         GlobalBus.post(
             Event(
-                EventType.NotificationChangedEvent,
-                "Missed"
+                EventType.NotificationChangedEvent, "Missed"
             )
         )
     }
